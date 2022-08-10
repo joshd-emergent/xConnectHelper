@@ -1,14 +1,13 @@
-﻿using System;
+﻿using Sitecore.Configuration;
+using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
-using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.RegularExpressions;
-using Sitecore.Configuration;
 
 namespace Sitecore.SharedSource.XConnectHelper.Impl
 {
@@ -99,14 +98,25 @@ namespace Sitecore.SharedSource.XConnectHelper.Impl
 
             // Now only valid certificates
             certStore.Open(OpenFlags.ReadOnly);
-            certCollection = certStore.Certificates.Find(X509FindType.FindByThumbprint, connStringParts["FindValue"], true);
+            certCollection = certStore.Certificates.Find(X509FindType.FindByThumbprint, connStringParts["FindValue"], false);
             certStore.Close();
+
 
             if (certCollection.Count == 0)
             {
                 Messages.Add($"Client certificate is invalid. Check its root certificate. Connection String: '{connString}'");
                 Error = true;
                 return;
+            }
+            else
+            {
+                //if (!certCollection[0].Verify())
+                //{
+
+                //    Messages.Add($"Joshd - Client certificate is invalid. Check its root certificate. Connection String: '{connString}' {certCollection[0].IssuerName.Name}");
+                //    Error = true;
+                //    return;
+                //}
             }
 
             // Warn if expiration date is within range
@@ -127,27 +137,44 @@ namespace Sitecore.SharedSource.XConnectHelper.Impl
             }
 
             // Check private key access            
-            try
-            {
-                var privateKey = certCollection[0]?.PrivateKey;
-            }
-            catch (CryptographicException)
-            {
-                Messages.Add($"Client certificate was found but private key is not accessible by this application pool. Set rights in cert store. Connection String: '{connString}'");
-                Error = true;
-                return;
-            }
+            //try
+            //{
+            //    var privateKey = certCollection[0]?.PrivateKey;
+            //}
+            //catch (CryptographicException)
+            //{
+            //    Messages.Add($"Client certificate was found but private key is not accessible by this application pool. Set rights in cert store. Connection String: '{connString}'");
+            //    Error = true;
+            //    return;
+            //}
         }
 
         public void ValidateHttpConnection()
         {
             var connString = ConfigurationManager.ConnectionStrings[ConnectionStringName]?.ConnectionString;
+            var certConnString = ConfigurationManager.ConnectionStrings[$"{ConnectionStringName}.certificate"].ConnectionString;
             var originalValidationCallback = ServicePointManager.ServerCertificateValidationCallback;
 
             try
             {
-                WebRequest request = WebRequest.Create(connString);
+                var request = WebRequest.CreateHttp(connString);
 
+                Dictionary<string, string> certConnStringParts = certConnString.Split(';')
+                    .Select(t => t.Split(new char[] { '=' }, 2))
+                    .ToDictionary(t => t[0].Trim(), t => t[1].Trim(), StringComparer.InvariantCultureIgnoreCase);
+
+                var storeLocation = StoreLocation.LocalMachine;
+                Enum.TryParse(certConnStringParts["StoreLocation"], out storeLocation);
+
+                var findType = X509FindType.FindByThumbprint;
+                Enum.TryParse(certConnStringParts["FindType"], out findType);
+
+                var certStore = new X509Store(certConnStringParts["StoreName"], storeLocation);
+                certStore.Open(OpenFlags.ReadOnly);
+                var cert = certStore.Certificates.Find(X509FindType.FindByThumbprint, certConnStringParts["FindValue"], false)[0];
+                certStore.Close();
+
+                request.ClientCertificates.Add(cert);
                 // Enforce SSL validation
                 ServicePointManager.ServerCertificateValidationCallback += new RemoteCertificateValidationCallback(ValidateServerCertificate);
 
