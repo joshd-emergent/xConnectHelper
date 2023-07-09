@@ -206,9 +206,9 @@ namespace Sitecore.SharedSource.XConnectHelper.Impl
 
         public void SetIdentifier(string id, string source)
         {
-            var identificationManager = DependencyInjection.ServiceLocator.ServiceProvider.GetRequiredService<Analytics.Tracking.Identification.IContactIdentificationManager>();
+            //var identificationManager = DependencyInjection.ServiceLocator.ServiceProvider.GetRequiredService<Analytics.Tracking.Identification.IContactIdentificationManager>();
 
-            identificationManager.IdentifyAs(new Analytics.Tracking.Identification.KnownContactIdentifier(source, id));
+            //identificationManager.IdentifyAs(new Analytics.Tracking.Identification.KnownContactIdentifier(source, id));
         }
 
         public IEnumerable<string> ValidateConfig()
